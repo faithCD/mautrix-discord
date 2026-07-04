@@ -245,7 +245,46 @@ func (portal *Portal) parseMatrixHTML(content *event.MessageEventContent, allowe
 		Users:       []string{},
 		RepliedUser: true,
 	}
+
 	if content.Format == event.FormatHTML && len(content.FormattedBody) > 0 {
+		formattedBody := content.FormattedBody
+
+		type TempEmoji struct {
+			Name   string
+			MxcURI string
+		}
+		var discoveredEmojis []TempEmoji
+
+		imgRegex := regexp.MustCompile(`<img\s+[^>]*data-mx-emoticon[^>]*>`)
+		srcRegex := regexp.MustCompile(`src="([^"]+)"`)
+		altRegex := regexp.MustCompile(`alt="([^"]+)"`)
+		titleRegex := regexp.MustCompile(`title="([^"]+)"`)
+
+		formattedBody = imgRegex.ReplaceAllStringFunc(formattedBody, func(imgTag string) string {
+			srcMatch := srcRegex.FindStringSubmatch(imgTag)
+			altMatch := altRegex.FindStringSubmatch(imgTag)
+			titleMatch := titleRegex.FindStringSubmatch(imgTag)
+
+			if len(srcMatch) < 2 {
+				return ""
+			}
+
+			name := ""
+			if len(altMatch) >= 2 {
+				name = altMatch[1]
+			} else if len(titleMatch) >= 2 {
+				name = titleMatch[1]
+			}
+
+			index := len(discoveredEmojis)
+			discoveredEmojis = append(discoveredEmojis, TempEmoji{
+				Name:   strings.Trim(name, ":"),
+				MxcURI: srcMatch[1],
+			})
+
+			return fmt.Sprintf("MAUTRIXEMOJITOKENINDEX%d", index)
+		})
+
 		ctx := format.NewContext()
 		ctx.ReturnData[formatterContextInputAllowedLinkPreviewsKey] = allowedLinkPreviews
 		ctx.ReturnData[formatterContextPortalKey] = portal
@@ -253,7 +292,43 @@ func (portal *Portal) parseMatrixHTML(content *event.MessageEventContent, allowe
 		if content.Mentions != nil {
 			ctx.ReturnData[formatterContextInputAllowedMentionsKey] = content.Mentions.UserIDs
 		}
-		return variationselector.FullyQualify(matrixHTMLParser.Parse(content.FormattedBody, ctx)), allowedMentions
+		parsedBody := matrixHTMLParser.Parse(formattedBody, ctx)
+
+		tokenRegex := regexp.MustCompile(`MAUTRIXEMOJITOKENINDEX(\d+)`)
+		parsedBody = tokenRegex.ReplaceAllStringFunc(parsedBody, func(match string) string {
+			subMatches := tokenRegex.FindStringSubmatch(match)
+			if len(subMatches) < 2 {
+				return match
+			}
+			var idx int
+			_, err := fmt.Sscanf(subMatches[1], "%d", &idx)
+			if err != nil || idx >= len(discoveredEmojis) {
+				return match
+			}
+			emojiData := discoveredEmojis[idx]
+
+			var emojiID string = ""
+			var isAnimated bool = false
+
+			parsedMXC, err := id.ParseContentURI(emojiData.MxcURI)
+			if err == nil {
+				fileRec := portal.bridge.DB.File.GetEmojiByMXC(parsedMXC)
+				if fileRec != nil && fileRec.ID != "" {
+					emojiID = fileRec.ID
+					if fileRec.MimeType == "image/gif" {
+						isAnimated = true
+					}
+				}
+			}
+			if emojiID != "" {
+				if isAnimated {
+					return fmt.Sprintf("<a:%s:%s>", emojiData.Name, emojiID)
+				}
+				return fmt.Sprintf("<:%s:%s>", emojiData.Name, emojiID)
+			}
+			return ":" + emojiData.Name + ":"
+		})
+		return variationselector.FullyQualify(parsedBody), allowedMentions
 	} else {
 		return variationselector.FullyQualify(escapeDiscordMarkdown(content.Body)), allowedMentions
 	}

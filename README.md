@@ -4,6 +4,7 @@ This is a modified fork of [mautrix-discord](https://github.com/mautrix/discord)
 ## Changes in This Fork
 
 This fork disables **direct media for avatars only** even if the config.yaml has direct_media enabled.
+Additionally, it implements a hacky-workaround for custom emotes to be bridged and recognized to guilds accordingly (see here for more info).
 
 ### Reason
 
@@ -37,8 +38,6 @@ This project remains licensed under the GNU Affero General Public License v3.0 (
 in accordance with the original project.
 
 #### NOTE:
-This patch is intentionally minimal. As this is not my primary programming
+This patch is intentionally minimal and very crude. As this is not my primary programming
 language, I opted for a small modification rather than introducing new
-configuration structures. Ideally, a configurable option under bridge.direct_media 
-for the config.yaml for specifically enabling or disabling avatars independently would be 
-a nicer solution as to ensure compatibility with matrix servers other than Synapse.
+configuration or HTML parsing structures.

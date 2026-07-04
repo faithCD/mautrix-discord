@@ -4,7 +4,7 @@ This is a modified fork of [mautrix-discord](https://github.com/mautrix/discord)
 ## Changes in This Fork
 
 This fork disables **direct media for avatars only** even if the config.yaml has direct_media enabled.
-Additionally, it implements a hacky-workaround for custom emotes to be bridged and recognized to guilds accordingly (see here for more info).
+Additionally, it implements a hacky-workaround for custom emotes to be bridged and recognized to guilds accordingly [(see here for more info)](https://github.com/faithCD/mautrix-discord-emoji-pipe).
 
 ### Reason
 
